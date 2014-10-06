@@ -1,0 +1,7 @@
+To Do:
+A circular FIFO buffer of size MAXTSB to store the partial result of each time stamp
+3 circular FIFO buffers of size MAXTSB to compute latency values for each MCGG, AS, and DSE
+
+MAXTSB is tunable
+For MAXTSB = 5 = 100 msec data in buffer
+
