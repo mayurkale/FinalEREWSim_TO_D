@@ -458,6 +458,40 @@ void* connect_pmu_udp(void *temp) {
 				unsigned char c = udp_BUF[1];
 				c <<= 1;
 				c >>= 5;
+
+				int flag = 0;
+				if(LLfirst == NULL) {
+					flag = 0;
+				} else {
+					t = LLfirst;
+					while(t != NULL) {
+						if((!strcmp(t->ip,inet_ntoa(their_addr.sin_addr))) && (!strncasecmp(t->protocol,"UDP",3))) {
+							flag = 1;
+							break;
+						} else {
+							t = t->next;
+						}
+					}
+				}
+				//pthread_mutex_unlock(&mutex_Lower_Layer_Details);
+
+				if(flag) {
+					ptr = udp_BUF;
+					ptr += 2;
+					copy_cbyc(length,ptr,2);
+					flen = to_intconvertor(length);
+					cal_crc = compute_CRC(udp_BUF,flen-2);
+					ptr += flen -4;
+					frame_crc = *ptr;
+					frame_crc <<= 8;
+					frame_crc |= *(ptr + 1);
+
+					if(frame_crc != cal_crc) {
+
+						continue;
+					}
+
+					udp_BUF[bytes_read] = '\0';
 				if(c == 0x00){
 					int indx = bytes_read-8;
 					unsigned char temp5[5],*d;
@@ -492,7 +526,8 @@ void* connect_pmu_udp(void *temp) {
 					soc= to_long_int_convertor(soC);
 					fsec = to_long_int_convertor1(fracsec);
 /*					printf("pmusoc %ld pmufracsec %ld\n",pmusoc,pmufracsec);*/
-/*					printf("Pmu Id = %d, SOC = %ld, FRACSEC = %ld\n",id,soc,fsec);*/
+					if(id == 0)
+				printf("Pmu Id = %d, SOC = %ld, FRACSEC = %ld\n",id,soc,fsec);
 					char code = udp_BUF[14];
 					if(SPDCApp == true) {
 						if(code == 0x08){
@@ -513,11 +548,11 @@ void* connect_pmu_udp(void *temp) {
 						}else if(code == 0x07){
 							Analysing(65,id,pmusoc,pmufracsec,0);
 						}else if(code == 0x09){
-/*							Analysing(22,id,pmusoc,pmufracsec);*/
+							/*							Analysing(22,id,pmusoc,pmufracsec);*/
 							app2_Analysing(22,id,soc,fsec,pmusoc,pmufracsec); 
 						}
 					}else if(LPDCApp == true  && c == 0x00) // Condition ensures lost packet implementation
-//else if(LPDCApp == true)
+						//else if(LPDCApp == true)
 					{
 						char key[16];
 						ENTRY entry;
@@ -526,16 +561,31 @@ void* connect_pmu_udp(void *temp) {
 						entry.key = key;
 						hsearch_r( entry, FIND, &found, &(app1->hashForApp1Pmus));
 						if(found!=NULL){
-							//pthread_mutex_lock(&mutex_timeout);
-
-							//if(tt == 0 && delayORdrop == 0 && id == delayDropPMUID)
-							if(IsDelayed == 1 && id == LostPmuId)
+					if(IsDelayed == 1 && id == LostPmuId)
 							{
-								//printf("Sleepingn\n");
-								usleep(app1_delay);
-							//	printf("Delayed PMU ID : key = %s soc =%lu fracsec=%lu\n",key,soc,fsec);
-								//printf("Uthla\n");
-							}
+								struct pthread_args *args=(struct pthread_args*)malloc(sizeof(struct pthread_args));
+								args->udp_BUF = malloc(bytes_read * sizeof(unsigned char));
+								if(args->udp_BUF == NULL)
+									{
+									printf("MEM ALLLOC PROBLEM\n");
+									exit(0);
+								}
+
+								bzero(&args->PMU_addr,sizeof(PMU_addr));
+								args->PMU_addr.sin_family=PMU_addr.sin_family;
+								args->PMU_addr.sin_addr.s_addr=PMU_addr.sin_addr.s_addr;
+								args->PMU_addr.sin_port=PMU_addr.sin_port;
+								memset(&(args->PMU_addr.sin_zero), '\0', 8);   // zero the rest of the struct
+
+								args->PMU_addr = PMU_addr;
+								copy_cbyc(args->udp_BUF,udp_BUF,bytes_read);
+
+								args->udp_sockfd = udp_sockfd;
+								args->bytes_read = bytes_read;
+							//	usleep(app1_delay);
+                      			createStartTimerThreadAtDelayedArrival(args);
+                      			continue;
+									}
 
 							else if(IsDelayed == 0 && id == LostPmuId) {
 								drop_count++;
@@ -554,79 +604,21 @@ void* connect_pmu_udp(void *temp) {
 								}
 							}
 
-
-
 						}
-
-						/* Calling analysing(11....) from application1 directly, since we will need index of the APP1TSB in which it will reside.
-						 * So here just store the pmusoc and pmufracsoc as global variables and then use in application1()
-						 *
-					*/
 						//Analysing(11,id,pmusoc,pmufracsec,0);
 						//Analysing(61,id,pmusoc,pmufracsec,0);
-/*						Analysing(20,id,pmusoc,pmufracsec); */
+						/*						Analysing(20,id,pmusoc,pmufracsec); */
 						//app2_Analysing(20,id,soc,fsec,pmusoc,pmufracsec);
-			
-			
+
+
 					}
 				}			
-			
-				//pthread_mutex_lock(&mutex_Lower_Layer_Details);
-				int flag = 0;
-				if(LLfirst == NULL) {
-					flag = 0;
-				} else {
-					t = LLfirst;
-					while(t != NULL) {
-						if((!strcmp(t->ip,inet_ntoa(their_addr.sin_addr))) && (!strncasecmp(t->protocol,"UDP",3))) {
-							flag = 1;
-							break;			
-						} else {
-								t = t->next;
-						}
-					}
-				}
-				//pthread_mutex_unlock(&mutex_Lower_Layer_Details);		
 
-				if(flag) {
-					ptr = udp_BUF;
-					ptr += 2;
-					copy_cbyc(length,ptr,2);
-					flen = to_intconvertor(length);
-					cal_crc = compute_CRC(udp_BUF,flen-2); 
-					ptr += flen -4;									
-					frame_crc = *ptr;
-					frame_crc <<= 8;
-					frame_crc |= *(ptr + 1);
 
-					if(frame_crc != cal_crc) {
+				udp_BUF[bytes_read] = '\0';
+					PMU_process_UDP(udp_BUF,PMU_addr,udp_sockfd);
 
-						continue;		
-					}
-					//process the frame									
 
-					/*if ((n = sendto(DB_sockfd,udp_BUF, MAXBUFLEN-1, 0,
-							(struct sockaddr *)&DB_Server_addr,sizeof(DB_Server_addr)) == -1)) {
-						perror("sendto");					
-					} */
-
-					udp_BUF[bytes_read] = '\0';					
-
-					//Call the udphandler
-					// This steps ignores packet from id(PMU No.) which is specified in apldc_apps.csv to implement lost packet
-//						if((id != -1) && (id != LostPmuId) && !IsDelayed)
-//
-//							PMU_process_UDP(udp_BUF,PMU_addr,udp_sockfd);
-//						else if(IsDelayed && (id != -1))
-//						{
-//							//printf("Processing......PMU ID = %d\n",id);
-//							PMU_process_UDP(udp_BUF,PMU_addr,udp_sockfd);
-//						}
-//
-//					else
-						PMU_process_UDP(udp_BUF,PMU_addr,udp_sockfd);
-
-					
 
 				} else {
 
@@ -640,6 +632,60 @@ void* connect_pmu_udp(void *temp) {
 	close(udp_sockfd);
 	pthread_exit(NULL);
 }
+
+
+/* ----------------------------------------------------------------------------	*/
+/* void  *startTimer(void *ind)										*/
+/* ----------------------------------------------------------------------------	*/
+
+void *startTimerAtDelayedArrival(void *arg) {
+	usleep(app1_delay);
+	unsigned char *udp_BUF;
+	int udp_sockfd;
+	struct pthread_args *args = (struct pthread_args*)arg;
+	udp_BUF = args->udp_BUF;
+
+	struct sockaddr_in PMU_addr = args->PMU_addr;
+	udp_sockfd = args->udp_sockfd;
+	PMU_process_UDP(args->udp_BUF,args->PMU_addr,args->udp_sockfd);
+	free(args->udp_BUF);
+	pthread_exit(NULL);
+
+}
+
+/* ----------------------------------------------------------------------------	*/
+/* void createStartTimerThread(int index)										*/
+/* ----------------------------------------------------------------------------	*/
+
+void createStartTimerThreadAtDelayedArrival(struct pthread_args *args) {
+
+	int err;
+	pthread_t t;
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+
+	if((err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED))) {
+
+		perror(strerror(err));
+		exit(1);
+	}
+
+	if((err = pthread_attr_setschedpolicy(&attr,SCHED_FIFO))) {
+
+		perror(strerror(err));
+		exit(1);
+	}
+
+
+	if((err = pthread_create(&t,&attr,startTimerAtDelayedArrival,(void *)args))) {
+
+			perror(strerror(err));
+			exit(1);
+	}
+}
+
+
+
 
 
 /* ----------------------------------------------------------------------------	*/

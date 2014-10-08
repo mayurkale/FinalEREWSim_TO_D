@@ -31,6 +31,16 @@
 /*                       Function prototypes                          */
 /* ------------------------------------------------------------------ */
 
+struct pthread_args{
+struct sockaddr_in PMU_addr;
+unsigned char *udp_BUF;
+int udp_sockfd;
+int bytes_read;
+};
+
+void createStartTimerThreadAtDelayedArrival(struct pthread_args *);
+void *startTimerAtDelayedArrival(void *);
+
 
 int add_PMU(char pmuid[], char ip[], char port[], char protocol[]);
 
